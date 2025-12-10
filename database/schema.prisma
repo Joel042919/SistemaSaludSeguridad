@@ -1,0 +1,353 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Enums
+enum RolUsuario {
+    ADMINISTRADOR
+    ADMISION
+    MEDICO
+    LABORATORIO
+    PACIENTE
+}
+
+enum EstadoCita {
+    PENDIENTE
+    CONFIRMADA
+    EN_ESPERA
+    EN_ATENCION
+    ATENDIDO
+    CANCELADO
+    NO_ASISTIO
+}
+
+enum TipoExamen {
+    MEDICO_GENERAL
+    OPTOMETRIA
+    AUDIOMETRIA
+    PSICOLOGIA
+    FISIOTERAPIA
+    LABORATORIO
+    RADIOLOGIA
+    ESPIROMETRIA
+    ODONTOLOGIA
+}
+
+enum EstadoExamen {
+    PENDIENTE
+    EN_PROCESO
+    COMPLETADO
+    OBSERVADO
+}
+
+enum Aptitud {
+    APTO
+    APTO_CON_RESTRICCIONES
+    NO_APTO
+    EVALUADO
+}
+
+enum MedioPago {
+    EFECTIVO
+    TARJETA
+    TRANSFERENCIA
+    YAPE
+    PLIN
+}
+
+enum EstadoPago {
+    PENDIENTE
+    PAGADO
+    ANULADO
+}
+
+enum Moneda {
+    PEN
+    USD
+}
+
+// 1. Configuración y Administración
+model Usuario {
+    id           String     @id @default(uuid())
+    email        String     @unique
+    passwordHash String
+    nombres      String
+    apellidos    String
+    dni          String?    @unique
+    telefono     String?
+    rol          RolUsuario
+    activo       Boolean    @default(true)
+    createdAt    DateTime   @default(now())
+    updatedAt    DateTime   @updatedAt
+
+    // Relaciones
+    medicoPerfil Medico?
+    logs         AuditLog[]
+    ventas       Venta[]    @relation("Vendedor")
+}
+
+model Medico {
+    id              String   @id @default(uuid())
+    usuarioId       String   @unique
+    usuario         Usuario  @relation(fields: [usuarioId], references: [id])
+    especialidad    String
+    cmp             String // Colegio Médico del Perú
+    rne             String? // Registro Nacional de Especialista
+    firmaDigitalUrl String?
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    // Relaciones
+    citasAtendidas     Cita[]
+    conceptosAptitud   ConceptoAptitud[]
+    examenesRealizados ExamenRealizado[]
+}
+
+model AuditLog {
+    id        String   @id @default(uuid())
+    usuarioId String
+    usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+    accion    String
+    entidad   String?
+    entidadId String?
+    detalles  Json?
+    createdAt DateTime @default(now())
+}
+
+// 2. Admisiones y Gestión de Turnos
+model Empresa {
+    id               String   @id @default(uuid())
+    ruc              String   @unique
+    razonSocial      String
+    direccion        String?
+    contactoNombre   String?
+    contactoEmail    String?
+    contactoTelefono String?
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    // Relaciones
+    pacientes  Paciente[]
+    protocolos Protocolo[]
+}
+
+model Paciente {
+    id              String   @id @default(uuid())
+    nombres         String
+    apellidos       String
+    tipoDoc         String   @default("DNI") // DNI, CE, PASAPORTE
+    numDoc          String   @unique
+    fechaNacimiento DateTime
+    sexo            String
+    telefono        String?
+    email           String?
+    direccion       String?
+    puestoTrabajo   String?
+    fotoUrl         String?
+    huellaDigital   String? // Para identificación biométrica
+    empresaId       String?
+    empresa         Empresa? @relation(fields: [empresaId], references: [id])
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    // Relaciones
+    citas     Cita[]
+    historias HistoriaClinica[]
+}
+
+model Protocolo {
+    id         String   @id @default(uuid())
+    nombre     String // Ej: "Emo Pre-Ocupacional Administrativo"
+    empresaId  String
+    empresa    Empresa  @relation(fields: [empresaId], references: [id])
+    examenes   Json // Lista de tipos de exámenes requeridos
+    precioBase Decimal  @db.Decimal(10, 2)
+    activo     Boolean  @default(true)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Relaciones
+    citas Cita[]
+}
+
+model Cita {
+    id              String     @id @default(uuid())
+    pacienteId      String
+    paciente        Paciente   @relation(fields: [pacienteId], references: [id])
+    protocoloId     String?
+    protocolo       Protocolo? @relation(fields: [protocoloId], references: [id])
+    medicoId        String?
+    medico          Medico?    @relation(fields: [medicoId], references: [id])
+    fechaProgramada DateTime
+    fechaLlegada    DateTime?
+    estado          EstadoCita @default(PENDIENTE)
+    observaciones   String?
+    createdAt       DateTime   @default(now())
+    updatedAt       DateTime   @updatedAt
+
+    // Relaciones
+    historiaClinica HistoriaClinica?
+    venta           Venta?
+}
+
+// 3. Historia Clínica Ocupacional
+model HistoriaClinica {
+    id                      String   @id @default(uuid())
+    pacienteId              String
+    paciente                Paciente @relation(fields: [pacienteId], references: [id])
+    citaId                  String   @unique
+    cita                    Cita     @relation(fields: [citaId], references: [id])
+    fechaApertura           DateTime @default(now())
+    antecedentesLaborales   String?  @db.Text
+    antecedentesPatologicos String?  @db.Text
+    alergias                String?
+    habitosNocivos          String?
+    createdAt               DateTime @default(now())
+    updatedAt               DateTime @updatedAt
+
+    // Relaciones
+    examenes ExamenRealizado[]
+    concepto ConceptoAptitud?
+}
+
+model ExamenRealizado {
+    id            String          @id @default(uuid())
+    historiaId    String
+    historia      HistoriaClinica @relation(fields: [historiaId], references: [id])
+    tipoExamen    TipoExamen
+    medicoId      String?
+    medico        Medico?         @relation(fields: [medicoId], references: [id])
+    resultados    Json? // Estructura flexible según examen
+    archivosUrl   String[]
+    estado        EstadoExamen    @default(PENDIENTE)
+    conclusiones  String?         @db.Text
+    observaciones String?         @db.Text
+    createdAt     DateTime        @default(now())
+    updatedAt     DateTime        @updatedAt
+}
+
+// 4. Laboratorio Clínico (Detalle específico)
+// Se maneja dentro de ExamenRealizado con TipoExamen.LABORATORIO, 
+// pero podemos tener tablas auxiliares si se requiere detalle de muestras.
+
+// 5. Módulo de Concepto de Aptitud
+model ConceptoAptitud {
+    id              String          @id @default(uuid())
+    historiaId      String          @unique
+    historia        HistoriaClinica @relation(fields: [historiaId], references: [id])
+    medicoId        String
+    medico          Medico          @relation(fields: [medicoId], references: [id])
+    aptitud         Aptitud
+    restricciones   String?         @db.Text
+    recomendaciones String?         @db.Text
+    vigenciaMeses   Int?
+    fechaEmision    DateTime        @default(now())
+    firmado         Boolean         @default(false)
+    archivoUrl      String?
+    createdAt       DateTime        @default(now())
+    updatedAt       DateTime        @updatedAt
+}
+
+// 6. Facturación y Tesorería
+model Venta {
+    id               String     @id @default(uuid())
+    citaId           String?    @unique
+    cita             Cita?      @relation(fields: [citaId], references: [id])
+    usuarioId        String // Quién realizó la venta
+    usuario          Usuario    @relation("Vendedor", fields: [usuarioId], references: [id])
+    tipoComprobante  String // FACTURA, BOLETA
+    serie            String
+    numero           String
+    fechaEmision     DateTime   @default(now())
+    clienteNombre    String
+    clienteDoc       String // RUC o DNI
+    clienteDireccion String?
+    moneda           Moneda     @default(PEN)
+    subtotal         Decimal    @db.Decimal(10, 2)
+    igv              Decimal    @db.Decimal(10, 2)
+    total            Decimal    @db.Decimal(10, 2)
+    estado           EstadoPago @default(PENDIENTE)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    detalles DetalleVenta[]
+    pagos    Pago[]
+}
+
+model DetalleVenta {
+    id             String  @id @default(uuid())
+    ventaId        String
+    venta          Venta   @relation(fields: [ventaId], references: [id])
+    descripcion    String
+    cantidad       Decimal @db.Decimal(10, 2)
+    precioUnitario Decimal @db.Decimal(10, 2)
+    subtotal       Decimal @db.Decimal(10, 2)
+}
+
+model Pago {
+    id         String    @id @default(uuid())
+    ventaId    String
+    venta      Venta     @relation(fields: [ventaId], references: [id])
+    medioPago  MedioPago
+    monto      Decimal   @db.Decimal(10, 2)
+    referencia String? // Nro operación, etc.
+    fechaPago  DateTime  @default(now())
+}
+
+// 7. Inventario y Logística
+model Producto {
+    id           String   @id @default(uuid())
+    codigo       String   @unique
+    nombre       String
+    descripcion  String?
+    unidadMedida String // UNIDAD, CAJA, ML, ETC
+    stockActual  Decimal  @default(0) @db.Decimal(10, 2)
+    stockMinimo  Decimal  @default(0) @db.Decimal(10, 2)
+    precioCosto  Decimal? @db.Decimal(10, 2)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    movimientos MovimientoInventario[]
+}
+
+model MovimientoInventario {
+    id         String   @id @default(uuid())
+    productoId String
+    producto   Producto @relation(fields: [productoId], references: [id])
+    tipo       String // ENTRADA, SALIDA
+    cantidad   Decimal  @db.Decimal(10, 2)
+    motivo     String?
+    referencia String?
+    usuarioId  String // Quién registró
+    createdAt  DateTime @default(now())
+}
+
+// 8. Configuración del Sistema
+model Configuracion {
+    id            String   @id @default(uuid())
+    nombreClinica String   @default("Salud Laboral")
+    ruc           String?
+    direccion     String?
+    logoUrl       String?
+    apiSunatUser  String?
+    apiSunatPass  String?
+    updatedAt     DateTime @updatedAt
+}
+
+// 9. Gestión de Plantillas
+model Plantilla {
+    id          String   @id @default(uuid())
+    titulo      String
+    contenido   String   @db.Text
+    tipo        String // Ej: "CONSENTIMIENTO", "INFORME"
+    rutaArchivo String? // Ruta local o URL del archivo
+    activo      Boolean  @default(true)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+}
