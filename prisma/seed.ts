@@ -8,6 +8,7 @@ async function main() {
     const password = 'Admin123!'
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // 1. Admin (Already exists)
     const admin = await prisma.usuario.upsert({
         where: { email },
         update: {},
@@ -19,8 +20,75 @@ async function main() {
             rol: RolUsuario.ADMINISTRADOR,
         },
     })
-
     console.log({ admin })
+
+    // 2. Admission User
+    const admisionUser = await prisma.usuario.upsert({
+        where: { email: 'admision@saludlaboral.com' },
+        update: {},
+        create: {
+            email: 'admision@saludlaboral.com',
+            passwordHash: hashedPassword,
+            nombres: 'Roberto',
+            apellidos: 'Gomez',
+            rol: RolUsuario.ADMISION,
+        },
+    })
+    console.log({ admisionUser })
+
+    // 3. Doctors
+    const doctors = [
+        { email: 'estan@saludlaboral.com', nombres: 'Esteban Andres', apellidos: 'Carranza Aguirre', cmp: '12345', especialidad: 'Medicina General' },
+        { email: 'juaza@saludlaboral.com', nombres: 'Juana', apellidos: 'Zavala Del Aguila', cmp: '54321', especialidad: 'Psicologia' },
+    ]
+
+    for (const doc of doctors) {
+        const u = await prisma.usuario.upsert({
+            where: { email: doc.email },
+            update: {},
+            create: {
+                email: doc.email,
+                passwordHash: hashedPassword,
+                nombres: doc.nombres,
+                apellidos: doc.apellidos,
+                rol: RolUsuario.MEDICO,
+                medicoPerfil: {
+                    create: {
+                        cmp: doc.cmp,
+                        especialidad: doc.especialidad
+                    }
+                }
+            },
+        })
+        console.log(`Created doctor: ${u.email}`)
+    }
+    // 4. Create Protocols (Must have companies first)
+    // Create a dummy company if not exists for seed
+    const empresa = await prisma.empresa.upsert({
+        where: { ruc: '45678932678' },
+        update: {},
+        create: {
+            ruc: '45678932678',
+            razonSocial: 'BOGA SAC'
+        }
+    })
+
+    const protocolos = [
+        { nombre: 'EMO Ingreso Administrativo', precioBase: 100 },
+        { nombre: 'EMO Anual Operario', precioBase: 150 }
+    ]
+
+    for (const p of protocolos) {
+        await prisma.protocolo.create({
+            data: {
+                nombre: p.nombre,
+                empresaId: empresa.id,
+                examenes: {}, // Empty JSON
+                precioBase: p.precioBase
+            }
+        })
+    }
+    console.log('Protocols seeded')
 }
 
 main()

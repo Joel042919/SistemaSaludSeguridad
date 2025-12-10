@@ -34,10 +34,10 @@
             <span class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider">
               Admisión
             </span>
-            <NuxtLink to="/admision/citas" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
+            <NuxtLink to="/admissions/calendar" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
               Citas & Turnos
             </NuxtLink>
-             <NuxtLink to="/admision/pacientes" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
+             <NuxtLink to="/admissions" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
               Pacientes
             </NuxtLink>
           </li>

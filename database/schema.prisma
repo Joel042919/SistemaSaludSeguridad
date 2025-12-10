@@ -152,6 +152,7 @@ model Paciente {
     huellaDigital   String? // Para identificación biométrica
     empresaId       String?
     empresa         Empresa? @relation(fields: [empresaId], references: [id])
+    documentos      Json? // Estructura: [{ categoria: "DNI", url: "..." }, ...]
     createdAt       DateTime @default(now())
     updatedAt       DateTime @updatedAt
 

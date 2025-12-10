@@ -1,0 +1,1 @@
+export { default } from "file:///C:/UNIVERSIDAD/10%20-%20CICLO/ING_SOFTWARE%20II/SEMANA_15/seguridadSalud/node_modules/@nuxt/vite-builder/dist/runtime/client.manifest.mjs"
