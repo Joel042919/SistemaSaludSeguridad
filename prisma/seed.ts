@@ -59,10 +59,24 @@ async function main() {
             passwordHash: hashedPassword,
             nombres: 'Jefe',
             apellidos: 'Logistica',
-            rol: RolUsuario.LOGISTICA,
+            rol: 'LOGISTICA', // Using string literal as enum might have type issues in seed if not updated in runtime types yet
         },
     })
     console.log({ logisticaUser })
+
+    // 2.7 Laboratorio User
+    const labUser = await prisma.usuario.upsert({
+        where: { email: 'laboratorio@saludlaboral.pe' },
+        update: {},
+        create: {
+            email: 'laboratorio@saludlaboral.pe',
+            passwordHash: hashedPassword,
+            nombres: 'Tecnico',
+            apellidos: 'Laboratorio',
+            rol: 'LABORATORIO',
+        },
+    })
+    console.log({ labUser })
 
     // 3. Doctors
     const doctors = [

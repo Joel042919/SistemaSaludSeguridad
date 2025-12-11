@@ -8,11 +8,11 @@
       
       <nav class="flex-1 overflow-y-auto py-4">
         <ul class="space-y-2">
-          <li>
+          <!-- <li>
             <NuxtLink to="/" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" active-class="bg-indigo-800">
               Dashboard
             </NuxtLink>
-          </li>
+          </li> -->
           
           <!-- Role Based Links -->
           <li v-if="isAdmin">
@@ -47,7 +47,7 @@
               Médico
             </span>
             <NuxtLink to="/medical" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
-              Dashboard Médico
+              Pacientes Médico
             </NuxtLink>
           </li>
 
@@ -83,6 +83,16 @@
             </NuxtLink>
             <NuxtLink v-if="isAdmin" to="/analytics/builder" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/analytics/builder' }">
               Reportes
+            </NuxtLink>
+          </li>
+
+          <!-- Laboratorio Independent Block -->
+          <li v-if="isLaboratorio">
+            <span class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mt-2">
+              Laboratorio
+            </span>
+            <NuxtLink to="/laboratory" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/laboratory' }">
+              Gestión de Exámenes
             </NuxtLink>
           </li>
         </ul>
@@ -151,6 +161,7 @@ const isAdmision = computed(() => authStore.user?.rol === 'ADMISION' || authStor
 const isMedico = computed(() => authStore.user?.rol === 'MEDICO' || authStore.user?.rol === 'ADMINISTRADOR')
 const isTesoreria = computed(() => authStore.user?.rol === 'TESORERIA')
 const isLogistica = computed(() => authStore.user?.rol === 'LOGISTICA' || authStore.user?.rol === 'ADMINISTRADOR')
+const isLaboratorio = computed(() => authStore.user?.rol === 'LABORATORIO' || authStore.user?.rol === 'ADMINISTRADOR')
 
 const logout = () => {
     authStore.logout()

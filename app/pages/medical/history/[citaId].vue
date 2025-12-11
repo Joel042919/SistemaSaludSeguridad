@@ -117,7 +117,10 @@
                 <div v-show="currentTab === 'exams'">
                     <div class="mb-4 flex justify-between items-center">
                         <h3 class="text-lg font-medium">Exámenes Realizados</h3>
-                        <button @click="showExamModal = true" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">+ Agregar Resultado</button>
+                        <div class="space-x-2">
+                            <button @click="showOrderModal = true" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Solicitar a Laboratorio</button>
+                            <button @click="showExamModal = true" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">Registrar Resultado (Directo)</button>
+                        </div>
                     </div>
                     
                     <ul v-if="history.examenes && history.examenes.length > 0" class="divide-y divide-gray-200">
@@ -126,9 +129,11 @@
                                 <div>
                                     <p class="text-sm font-bold text-indigo-600">{{ exam.tipoExamen }}</p>
                                     <p class="text-xs text-gray-500">{{ new Date(exam.createdAt).toLocaleString() }}</p>
-                                    <p class="mt-1 text-sm text-gray-700">{{ exam.conclusiones || 'Sin conclusiones' }}</p>
+                                    <p class="mt-1 text-sm text-gray-700">{{ exam.conclusiones || (exam.estado === 'PENDIENTE' ? 'Esperando resultados...' : 'Sin conclusiones') }}</p>
+                                    <p v-if="exam.observaciones" class="text-xs text-gray-500 italic mt-1">Obs: {{ exam.observaciones }}</p>
                                 </div>
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                    :class="exam.estado === 'COMPLETADO' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
                                     {{ exam.estado }}
                                 </span>
                             </div>
@@ -215,6 +220,41 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal for Ordering Exam -->
+    <div v-if="showOrderModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-500 bg-opacity-75">
+        <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h3 class="text-lg font-bold mb-4">Solicitar Examen a Laboratorio</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium">Tipo Examen</label>
+                    <select v-model="orderForm.tipoExamen" class="w-full border p-2 rounded">
+                        <option value="AUDIOMETRIA">Audiometría</option>
+                        <option value="ESPIROMETRIA">Espirometría</option>
+                        <option value="OPTOMETRIA">Optometría</option>
+                        <option value="PSICOLOGIA">Psicología</option>
+                        <option value="LABORATORIO_CLINICO">Laboratorio Clínico</option>
+                        <option value="RAYOS_X">Rayos X</option>
+                         <option value="IMAGENOLOGIA">Imagenología</option>
+                        <option value="MEDICO_GENERAL">Médico General</option>
+                        <option value="MUSCULO_ESQUELETICO">Músculo Esquelético</option>
+                         <option value="ODONTOLOGIA">Odontología</option>
+                    </select>
+                </div>
+                <div>
+                     <label class="block text-sm font-medium">Indicaciones / Observaciones</label>
+                     <textarea v-model="orderForm.observaciones" class="w-full border p-2 rounded" rows="3" placeholder="Ej: Énfasis en audiometría tonal..."></textarea>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <button @click="showOrderModal = false" class="px-4 py-2 border rounded">Cancelar</button>
+                <button @click="orderExam" :disabled="ordering" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                    {{ ordering ? 'Enviando...' : 'Solicitar' }}
+                </button>
+            </div>
+        </div>
+    </div>
   </div>
 </template>
 
@@ -258,6 +298,7 @@ interface HistoryData {
         createdAt: string
         conclusiones: string
         estado: string
+        observaciones?: string
     }>
     concepto?: {
         aptitud: string
@@ -419,6 +460,37 @@ const deleteDocument = async (index: number) => {
         refresh()
     } catch (e) {
         alert('Error al eliminar documento')
+    }
+}
+
+// Order Logic
+const showOrderModal = ref(false)
+const ordering = ref(false)
+const orderForm = ref({
+    tipoExamen: 'LABORATORIO_CLINICO',
+    observaciones: ''
+})
+
+const orderExam = async () => {
+    if (!history.value) return
+    ordering.value = true
+    try {
+        await $fetch('/api/medical/exams/order', {
+            method: 'POST',
+            body: {
+                historiaId: history.value.id,
+                tipoExamen: orderForm.value.tipoExamen,
+                observaciones: orderForm.value.observaciones
+            }
+        })
+        showOrderModal.value = false
+        orderForm.value.observaciones = ''
+        alert('Solicitud enviada a Laboratorio')
+        refresh()
+    } catch (e) {
+        alert('Error al solicitar examen')
+    } finally {
+        ordering.value = false
     }
 }
 </script>

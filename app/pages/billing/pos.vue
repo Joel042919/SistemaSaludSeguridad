@@ -85,6 +85,26 @@
         </main>
         
         <CashModal :show="showOpenModal" mode="OPEN" @processed="handleOpenBox" />
+
+        <!-- Success/Download Modal -->
+        <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-8 rounded shadow-lg text-center max-w-sm w-full">
+                <div class="mb-4 text-green-500">
+                    <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold mb-2">¡Venta Exitosa!</h3>
+                <p class="text-gray-600 mb-6">El comprobante se ha generado correctamente.</p>
+                
+                <div class="space-y-3">
+                    <button @click="downloadInvoice" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 font-bold flex items-center justify-center gap-2">
+                        <span>📄</span> Descargar PDF
+                    </button>
+                    <button @click="closeSuccessModal" class="w-full border border-gray-300 text-gray-700 py-2 rounded hover:bg-gray-50">
+                        Nueva Venta
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -218,14 +238,30 @@ async function processSale() {
         
         if (error.value) throw error.value
 
-        alert('Venta Procesada! Factura: ' + data.value.serie + '-' + data.value.numero)
+        // SAVE INVOICE ID FOR DOWNLOAD
+        lastInvoiceId.value = data.value.id
+        showSuccessModal.value = true
         
-        // Limpiar y refrescar deudas si es necesario similar a un "Reload"
+        // Reset Cart
         cart.value = []
         cliente.value = null
         searchResults.value = []
     } catch (e) {
         alert('Error procesando venta: ' + e)
     }
+}
+
+// Success Modal Logic
+const lastInvoiceId = ref<string | null>(null)
+const showSuccessModal = ref(false)
+
+function closeSuccessModal() {
+    showSuccessModal.value = false
+    lastInvoiceId.value = null
+}
+
+function downloadInvoice() {
+    if (!lastInvoiceId.value) return
+    window.open(`/api/billing/invoice/${lastInvoiceId.value}/pdf`, '_blank')
 }
 </script>
