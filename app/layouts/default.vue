@@ -41,6 +41,50 @@
               Pacientes
             </NuxtLink>
           </li>
+
+          <li v-if="isMedico">
+            <span class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+              Médico
+            </span>
+            <NuxtLink to="/medical" class="block px-4 py-2 hover:bg-indigo-800 transition-colors">
+              Dashboard Médico
+            </NuxtLink>
+          </li>
+
+          <li v-if="isTesoreria || isLogistica">
+            <!-- Tesorería -->
+            <span v-if="isTesoreria" class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+              Tesorería
+            </span>
+            <NuxtLink v-if="isTesoreria || isAdmin" to="/billing/pos" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/billing/pos' }">
+              Punto de Venta (POS)
+            </NuxtLink>
+            <NuxtLink v-if="isTesoreria || isAdmin" to="/billing/daily-report" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/billing/daily-report' }">
+              Reporte / Cierre
+            </NuxtLink>
+
+            <!-- Logística & Inventario -->
+            <span v-if="isLogistica" class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mt-2">
+              Logística & Inventario
+            </span>
+            <NuxtLink v-if="isLogistica || isAdmin" to="/inventory" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/inventory' }">
+              Inventario
+            </NuxtLink>
+            <NuxtLink v-if="isLogistica || isAdmin" to="/logistics/tracking" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/logistics/tracking' }">
+              Logística
+            </NuxtLink>
+
+            <!-- Analítica -->
+            <span v-if="isAdmin" class="px-4 py-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mt-2">
+              Analítica
+            </span>
+            <NuxtLink v-if="isAdmin" to="/analytics" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/analytics' }">
+              Dashboard
+            </NuxtLink>
+            <NuxtLink v-if="isAdmin" to="/analytics/builder" class="block px-4 py-2 hover:bg-indigo-800 transition-colors" :class="{ 'bg-indigo-800': $route.path === '/analytics/builder' }">
+              Reportes
+            </NuxtLink>
+          </li>
         </ul>
       </nav>
 
@@ -104,6 +148,9 @@ const userInitials = computed(() => {
 // Role Checks
 const isAdmin = computed(() => authStore.user?.rol === 'ADMINISTRADOR')
 const isAdmision = computed(() => authStore.user?.rol === 'ADMISION' || authStore.user?.rol === 'ADMINISTRADOR')
+const isMedico = computed(() => authStore.user?.rol === 'MEDICO' || authStore.user?.rol === 'ADMINISTRADOR')
+const isTesoreria = computed(() => authStore.user?.rol === 'TESORERIA')
+const isLogistica = computed(() => authStore.user?.rol === 'LOGISTICA' || authStore.user?.rol === 'ADMINISTRADOR')
 
 const logout = () => {
     authStore.logout()

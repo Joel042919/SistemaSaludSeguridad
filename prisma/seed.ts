@@ -36,6 +36,34 @@ async function main() {
     })
     console.log({ admisionUser })
 
+    // 2.5 Tesoreria User
+    const tesoreriaUser = await prisma.usuario.upsert({
+        where: { email: 'tesoreria@saludlaboral.pe' },
+        update: {},
+        create: {
+            email: 'tesoreria@saludlaboral.pe',
+            passwordHash: hashedPassword,
+            nombres: 'Cajero',
+            apellidos: 'Principal',
+            rol: RolUsuario.TESORERIA,
+        },
+    })
+    console.log({ tesoreriaUser })
+
+    // 2.6 Logistica User
+    const logisticaUser = await prisma.usuario.upsert({
+        where: { email: 'logistica@saludlaboral.pe' },
+        update: {},
+        create: {
+            email: 'logistica@saludlaboral.pe',
+            passwordHash: hashedPassword,
+            nombres: 'Jefe',
+            apellidos: 'Logistica',
+            rol: RolUsuario.LOGISTICA,
+        },
+    })
+    console.log({ logisticaUser })
+
     // 3. Doctors
     const doctors = [
         { email: 'estan@saludlaboral.com', nombres: 'Esteban Andres', apellidos: 'Carranza Aguirre', cmp: '12345', especialidad: 'Medicina General' },

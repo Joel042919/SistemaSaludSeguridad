@@ -14,6 +14,8 @@ enum RolUsuario {
     MEDICO
     LABORATORIO
     PACIENTE
+    TESORERIA
+    LOGISTICA
 }
 
 enum EstadoCita {
@@ -86,9 +88,12 @@ model Usuario {
     updatedAt    DateTime   @updatedAt
 
     // Relaciones
-    medicoPerfil Medico?
-    logs         AuditLog[]
-    ventas       Venta[]    @relation("Vendedor")
+    medicoPerfil           Medico?
+    logs                   AuditLog[]
+    facturas               Factura[]              @relation("Vendedor")
+    cajas                  Caja[]
+    // 10. Analítica
+    reportesPersonalizados ReportePersonalizado[]
 }
 
 model Medico {
@@ -106,6 +111,7 @@ model Medico {
     citasAtendidas     Cita[]
     conceptosAptitud   ConceptoAptitud[]
     examenesRealizados ExamenRealizado[]
+    firmaDigital       FirmaDigital?
 }
 
 model AuditLog {
@@ -159,6 +165,7 @@ model Paciente {
     // Relaciones
     citas     Cita[]
     historias HistoriaClinica[]
+    facturas  Factura[]
 }
 
 model Protocolo {
@@ -193,7 +200,8 @@ model Cita {
 
     // Relaciones
     historiaClinica HistoriaClinica?
-    venta           Venta?
+    factura         Factura?
+    seguimiento     SeguimientoLogistico?
 }
 
 // 3. Historia Clínica Ocupacional
@@ -232,59 +240,117 @@ model ExamenRealizado {
     updatedAt     DateTime        @updatedAt
 }
 
-// 4. Laboratorio Clínico (Detalle específico)
-// Se maneja dentro de ExamenRealizado con TipoExamen.LABORATORIO, 
-// pero podemos tener tablas auxiliares si se requiere detalle de muestras.
-
 // 5. Módulo de Concepto de Aptitud
 model ConceptoAptitud {
-    id              String          @id @default(uuid())
-    historiaId      String          @unique
-    historia        HistoriaClinica @relation(fields: [historiaId], references: [id])
-    medicoId        String
-    medico          Medico          @relation(fields: [medicoId], references: [id])
-    aptitud         Aptitud
-    restricciones   String?         @db.Text
-    recomendaciones String?         @db.Text
-    vigenciaMeses   Int?
-    fechaEmision    DateTime        @default(now())
-    firmado         Boolean         @default(false)
-    archivoUrl      String?
-    createdAt       DateTime        @default(now())
-    updatedAt       DateTime        @updatedAt
-}
+    id          String             @id @default(uuid())
+    historiaId  String             @unique
+    historia    HistoriaClinica    @relation(fields: [historiaId], references: [id])
+    medicoId    String
+    medico      Medico             @relation(fields: [medicoId], references: [id])
+    plantillaId String?
+    plantilla   PlantillaConcepto? @relation(fields: [plantillaId], references: [id])
 
-// 6. Facturación y Tesorería
-model Venta {
-    id               String     @id @default(uuid())
-    citaId           String?    @unique
-    cita             Cita?      @relation(fields: [citaId], references: [id])
-    usuarioId        String // Quién realizó la venta
-    usuario          Usuario    @relation("Vendedor", fields: [usuarioId], references: [id])
-    tipoComprobante  String // FACTURA, BOLETA
-    serie            String
-    numero           String
-    fechaEmision     DateTime   @default(now())
-    clienteNombre    String
-    clienteDoc       String // RUC o DNI
-    clienteDireccion String?
-    moneda           Moneda     @default(PEN)
-    subtotal         Decimal    @db.Decimal(10, 2)
-    igv              Decimal    @db.Decimal(10, 2)
-    total            Decimal    @db.Decimal(10, 2)
-    estado           EstadoPago @default(PENDIENTE)
+    aptitud         Aptitud
+    restricciones   String?   @db.Text
+    recomendaciones String?   @db.Text
+    vigenciaMeses   Int?
+    fechaEmision    DateTime  @default(now())
+    fechaVigencia   DateTime?
+
+    // Seguridad Digital
+    firmado          Boolean @default(false)
+    hashVerificacion String? @unique // SHA-256 del contenido
+    pdfGenerado      String? // URL o path del PDF final
+    firmaImagenUrl   String?
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    detalles DetalleVenta[]
-    pagos    Pago[]
+    auditorias AuditoriaConcepto[]
 }
 
-model DetalleVenta {
+model PlantillaConcepto {
+    id                   String   @id @default(uuid())
+    nombre               String
+    contenidoHtml        String   @db.Text
+    variablesDisponibles Json? // Ejp: ["nombre_paciente", "dni", "fecha"]
+    tipoResultado        Aptitud? // Si es null, aplica para cualquiera
+    activo               Boolean  @default(true)
+    createdAt            DateTime @default(now())
+    updatedAt            DateTime @updatedAt
+
+    conceptos ConceptoAptitud[]
+}
+
+model FirmaDigital {
+    id                 String   @id @default(uuid())
+    medicoId           String   @unique
+    medico             Medico   @relation(fields: [medicoId], references: [id])
+    certificadoDigital Bytes? // Archivo .p12 o similar (simulado)
+    hashCertificado    String?
+    passwordHash       String? // Password para desbloquear firma
+    activo             Boolean  @default(true)
+    updatedAt          DateTime @updatedAt
+}
+
+model AuditoriaConcepto {
+    id         String          @id @default(uuid())
+    conceptoId String
+    concepto   ConceptoAptitud @relation(fields: [conceptoId], references: [id])
+    usuarioId  String
+    accion     String // "EMISION", "DESCARGA", "VERIFICACION"
+    ip         String?
+    userAgent  String?
+    createdAt  DateTime        @default(now())
+}
+
+// 6. Facturación y Tesorería
+model Factura {
+    id         String    @id @default(uuid())
+    citaId     String?   @unique
+    cita       Cita?     @relation(fields: [citaId], references: [id])
+    pacienteId String?
+    paciente   Paciente? @relation(fields: [pacienteId], references: [id])
+    usuarioId  String // Quién emitió la factura (Cajero)
+    usuario    Usuario   @relation("Vendedor", fields: [usuarioId], references: [id])
+
+    // Datos SUNAT
+    tipoComprobante String // 01=FACTURA, 03=BOLETA
+    serie           String
+    numero          String
+    fechaEmision    DateTime @default(now())
+    moneda          Moneda   @default(PEN)
+
+    // Cliente
+    clienteNombre    String
+    clienteDoc       String
+    clienteDireccion String?
+
+    // Montos
+    subtotal   Decimal    @db.Decimal(10, 2)
+    igv        Decimal    @db.Decimal(10, 2)
+    total      Decimal    @db.Decimal(10, 2)
+    estadoPago EstadoPago @default(PENDIENTE)
+
+    // SUNAT Response
+    xmlGenerado  String? @db.Text
+    cdrRespuesta String? @db.Text
+    hashCdr      String?
+    estadoSunat  String? @default("PENDIENTE") // ENVIADO, ACEPTADO, RECHAZADO
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    detalles FacturaDetalle[]
+    pagos    Pago[]
+
+    @@unique([serie, numero])
+}
+
+model FacturaDetalle {
     id             String  @id @default(uuid())
-    ventaId        String
-    venta          Venta   @relation(fields: [ventaId], references: [id])
+    facturaId      String
+    factura        Factura @relation(fields: [facturaId], references: [id])
     descripcion    String
     cantidad       Decimal @db.Decimal(10, 2)
     precioUnitario Decimal @db.Decimal(10, 2)
@@ -293,40 +359,181 @@ model DetalleVenta {
 
 model Pago {
     id         String    @id @default(uuid())
-    ventaId    String
-    venta      Venta     @relation(fields: [ventaId], references: [id])
+    facturaId  String
+    factura    Factura   @relation(fields: [facturaId], references: [id])
     medioPago  MedioPago
     monto      Decimal   @db.Decimal(10, 2)
     referencia String? // Nro operación, etc.
     fechaPago  DateTime  @default(now())
+
+    // Relación con Caja (Para saber en qué turno entró el dinero)
+    cajaId String?
+    caja   Caja?   @relation(fields: [cajaId], references: [id])
 }
 
-// 7. Inventario y Logística
-model Producto {
-    id           String   @id @default(uuid())
-    codigo       String   @unique
-    nombre       String
-    descripcion  String?
-    unidadMedida String // UNIDAD, CAJA, ML, ETC
+model Caja {
+    id            String    @id @default(uuid())
+    usuarioId     String // Cajero responsable
+    usuario       Usuario   @relation(fields: [usuarioId], references: [id])
+    nombre        String // "Caja 1", "Caja Principal"
+    montoApertura Decimal   @db.Decimal(10, 2)
+    montoCierre   Decimal?  @db.Decimal(10, 2)
+    fechaApertura DateTime  @default(now())
+    fechaCierre   DateTime?
+    estado        String    @default("ABIERTA") // ABIERTA, CERRADA
+
+    movimientos    MovimientoCaja[]
+    pagosRecibidos Pago[]
+}
+
+model MovimientoCaja {
+    id          String   @id @default(uuid())
+    cajaId      String
+    caja        Caja     @relation(fields: [cajaId], references: [id])
+    tipo        String // INGRESO, EGRESO
+    monto       Decimal  @db.Decimal(10, 2)
+    descripcion String
+    usuarioId   String // Quien registra
+    createdAt   DateTime @default(now())
+}
+
+model PasarelaPago {
+    id        String  @id @default(uuid())
+    nombre    String  @unique // "CULQI", "IZIPAY"
+    apiKey    String
+    apiSecret String?
+    activo    Boolean @default(true)
+}
+
+model Conciliacion {
+    id            String   @id @default(uuid())
+    fecha         DateTime @default(now())
+    totalSistema  Decimal  @db.Decimal(10, 2)
+    totalBanco    Decimal  @db.Decimal(10, 2)
+    diferencia    Decimal  @db.Decimal(10, 2)
+    observaciones String?
+    usuarioId     String
+}
+
+// --- INVENTARIO & LOGÍSTICA ---
+
+model Proveedor {
+    id          String                 @id @default(uuid())
+    ruc         String                 @unique
+    razonSocial String
+    telefono    String?
+    email       String?
+    direccion   String?
+    items       InventarioItem[]
+    movimientos MovimientoInventario[]
+    createdAt   DateTime               @default(now())
+    updatedAt   DateTime               @updatedAt
+}
+
+model InventarioItem {
+    id          String  @id @default(uuid())
+    codigo      String  @unique // SKU o Código de Barras
+    nombre      String
+    descripcion String?
+    categoria   String // MEDICAMENTO, INSUMO, EPP, REACTIVO
+
+    // Stock
     stockActual  Decimal  @default(0) @db.Decimal(10, 2)
     stockMinimo  Decimal  @default(0) @db.Decimal(10, 2)
-    precioCosto  Decimal? @db.Decimal(10, 2)
-    createdAt    DateTime @default(now())
-    updatedAt    DateTime @updatedAt
+    stockMaximo  Decimal? @db.Decimal(10, 2)
+    unidadMedida String // UNIDAD, CAJA, LITRO, ML
+
+    // Costos y Precios
+    costoPromedio Decimal  @default(0) @db.Decimal(10, 2)
+    precioVenta   Decimal? @db.Decimal(10, 2)
+
+    // Lotes y Vencimiento (Control FIFO/FEFO se hace por lógica, aquí datos generales del último o trazabilidad)
+    ubicacion String? // Estante A1
+
+    proveedorId String?
+    proveedor   Proveedor? @relation(fields: [proveedorId], references: [id])
 
     movimientos MovimientoInventario[]
+    kardex      Kardex[]
+    alertas     AlertaInventario[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 }
 
 model MovimientoInventario {
-    id         String   @id @default(uuid())
-    productoId String
-    producto   Producto @relation(fields: [productoId], references: [id])
-    tipo       String // ENTRADA, SALIDA
-    cantidad   Decimal  @db.Decimal(10, 2)
-    motivo     String?
-    referencia String?
-    usuarioId  String // Quién registró
-    createdAt  DateTime @default(now())
+    id            String         @id @default(uuid())
+    itemId        String
+    item          InventarioItem @relation(fields: [itemId], references: [id])
+    tipo          String // INGRESO, SALIDA, AJUSTE
+    cantidad      Decimal        @db.Decimal(10, 2)
+    costoUnitario Decimal?       @db.Decimal(10, 2) // Para ingresos
+    costoTotal    Decimal?       @db.Decimal(10, 2)
+
+    motivo           String? // Compra, Venta, Caducidad, Merma
+    documentoRef     String? // Nro Guía, Factura
+    lote             String?
+    fechaVencimiento DateTime?
+
+    proveedorId String?
+    proveedor   Proveedor? @relation(fields: [proveedorId], references: [id])
+
+    usuarioId String
+    createdAt DateTime @default(now())
+
+    kardex Kardex[]
+}
+
+model Kardex {
+    id           String               @id @default(uuid())
+    itemId       String
+    item         InventarioItem       @relation(fields: [itemId], references: [id])
+    movimientoId String
+    movimiento   MovimientoInventario @relation(fields: [movimientoId], references: [id])
+
+    fecha DateTime @default(now())
+    tipo  String // ENTRADA, SALIDA
+
+    // Valores históricos post-movimiento
+    cantidad      Decimal @db.Decimal(10, 2) // Saldo Cantidad
+    costoUnitario Decimal @db.Decimal(10, 2) // Costo Promedio en ese momento
+    costoTotal    Decimal @db.Decimal(10, 2) // Saldo Valorado
+}
+
+model AlertaInventario {
+    id        String         @id @default(uuid())
+    itemId    String
+    item      InventarioItem @relation(fields: [itemId], references: [id])
+    tipo      String // STOCK_BAJO, VENCIMIENTO, STOCK_EXCESIVO
+    mensaje   String
+    leido     Boolean        @default(false)
+    createdAt DateTime       @default(now())
+}
+
+model SeguimientoLogistico {
+    id     String @id @default(uuid())
+    citaId String @unique
+    cita   Cita   @relation(fields: [citaId], references: [id])
+
+    estadoActual    String // MUESTRA_TOMADA, EN_CAMINO, EN_LABORATORIO, PROCESANDO, INFORME_DISPONIBLE
+    ubicacionActual String? // "Laboratorio Central", "Recepción"
+    fechaEstimada   DateTime?
+
+    historial HistorialLogistica[]
+
+    updatedAt DateTime @updatedAt
+}
+
+model HistorialLogistica {
+    id            String               @id @default(uuid())
+    seguimientoId String
+    seguimiento   SeguimientoLogistico @relation(fields: [seguimientoId], references: [id])
+
+    estado      String
+    ubicacion   String?
+    usuarioId   String // Quien actualizó
+    observacion String?
+    timestamp   DateTime @default(now())
 }
 
 // 8. Configuración del Sistema
@@ -351,4 +558,15 @@ model Plantilla {
     activo      Boolean  @default(true)
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
+}
+
+// 10. Módulo de Analítica
+model ReportePersonalizado {
+    id            String   @id @default(uuid())
+    titulo        String
+    tipo          String // Ej: "FINANCIERO", "MEDICO", "OPERATIVO"
+    configuracion Json // Filtros aplicados, columnas seleccionadas, tipo de gráfico
+    usuarioId     String
+    usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+    createdAt     DateTime @default(now())
 }
