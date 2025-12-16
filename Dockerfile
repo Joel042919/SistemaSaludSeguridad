@@ -50,7 +50,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npx prisma generate
+RUN npx prisma generate --schema=./database/schema.prisma
 
 # 2. Construir la aplicación (Genera la carpeta .output)
 RUN npm run build
@@ -69,4 +69,4 @@ ENV NUXT_PORT=3000
 EXPOSE 3000
 
 # Tu comando de inicio está perfecto
-CMD ["sh","-c","npx prisma migrate deploy && node .output/server/index.mjs"]
+CMD ["sh","-c","npx prisma migrate deploy --schema=./database/schema.prisma && node .output/server/index.mjs"]
