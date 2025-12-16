@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postges:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: maria042919
+      POSTGRES_DB: seguridadSalud
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d seguridadSalud"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "80:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:maria042919@db:5432/seguridadSalud?schema=public
+      N8N_WEBHOOK_URL: https://joel042919.app.n8n.cloud/webhook
+volumes:
+  pgdata:
